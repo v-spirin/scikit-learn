@@ -144,7 +144,7 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
 
     cpdef build(self, Tree tree, object X, np.ndarray y,
                 np.ndarray sample_weight=None,
-                np.ndarray X_idx_sorted=None):
+                np.ndarray X_idx_sorted=None, np.ndarray feature_usage=None, double mu=0.0):
         """Build a decision tree from the training set (X, y)."""
 
         # check input
@@ -195,6 +195,12 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
         cdef SIZE_t max_depth_seen = -1
         cdef int rc = 0
 
+        # 1 if feature has already been split on in the tree, 0 otherwise. Used to regularize by reducing the overall number of features used, 
+        # which can help in feature selection (see Gradient Boosted Feature Selection by Xu et. al.)
+        if feature_usage is None:
+            print("Initializing feature_usage")
+            feature_usage = np.ones(X.shape[1])
+
         cdef Stack stack = Stack(INITIAL_STACK_SIZE)
         cdef StackRecord stack_record
 
@@ -233,13 +239,18 @@ cdef class DepthFirstTreeBuilder(TreeBuilder):
                            (impurity <= min_impurity_split))
 
                 if not is_leaf:
-                    splitter.node_split(impurity, &split, &n_constant_features)
+                    with gil:
+                        print("DepthFirstTreeBuilder.build() about to call node_split")
+                    splitter.node_split(impurity, &split, &n_constant_features, feature_usage, mu)
                     # If EPSILON=0 in the below comparison, float precision
                     # issues stop splitting, producing trees that are
                     # dissimilar to v0.18
                     is_leaf = (is_leaf or split.pos >= end or
                                (split.improvement + EPSILON <
                                 min_impurity_decrease))
+                    if not is_leaf:
+                        with gil:
+                            feature_usage[split.feature] = 0
 
                 node_id = tree._add_node(parent, is_left, is_leaf, split.feature,
                                          split.threshold, impurity, n_node_samples,

@@ -91,7 +91,9 @@ cdef class Splitter:
     cdef int node_split(self,
                         double impurity,   # Impurity of the node
                         SplitRecord* split,
-                        SIZE_t* n_constant_features) nogil except -1
+                        SIZE_t* n_constant_features, 
+                        np.ndarray feature_usage=*,
+                        double mu=*) nogil except -1
 
     cdef void node_value(self, double* dest) nogil
 

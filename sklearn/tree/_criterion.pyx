@@ -167,9 +167,14 @@ cdef class Criterion:
         The absolute impurity improvement is only computed by the
         impurity_improvement method once the best split has been found.
         """
+        with gil:
+            print("Criterion.proxy_impurity_improvement")
         cdef double impurity_left
         cdef double impurity_right
         self.children_impurity(&impurity_left, &impurity_right)
+
+        with gil:
+            print("weighted_n_right: " + str(self.weighted_n_right) + ", weighted_n_left: " + self.weighted_n_left)
 
         return (- self.weighted_n_right * impurity_right
                 - self.weighted_n_left * impurity_left)
@@ -196,6 +201,8 @@ cdef class Criterion:
         ------
         double : improvement in impurity after the split occurs
         """
+        with gil:
+            print("Criterion.impurity_improvement")
 
         cdef double impurity_left
         cdef double impurity_right
@@ -762,6 +769,9 @@ cdef class RegressionCriterion(Criterion):
         """Initialize the criterion at node samples[start:end] and
            children samples[start:start] and samples[start:end]."""
         # Initialize fields
+
+        with gil:
+            print("RegressionCriterion init")
         self.y = y
         self.y_stride = y_stride
         self.sample_weight = sample_weight
@@ -771,6 +781,10 @@ cdef class RegressionCriterion(Criterion):
         self.n_node_samples = end - start
         self.weighted_n_samples = weighted_n_samples
         self.weighted_n_node_samples = 0.
+
+        # with gil:
+        #     print("y_stride=" + str(y_stride) + 
+        #      ", start=" + str(start) + ", end=" + str(end) + ", n_node_samples=" + str(end-start) + ", weighted_n_samples=" + str(weighted_n_samples))
 
         cdef SIZE_t i
         cdef SIZE_t p
@@ -784,17 +798,31 @@ cdef class RegressionCriterion(Criterion):
 
         for p in range(start, end):
             i = samples[p]
-
+            # with gil:
+            #    print("p = " + str(p) + ", i=" + str(i))
             if sample_weight != NULL:
                 w = sample_weight[i]
-
+            # with gil:    
+            #    print("w=" + str(w))
             for k in range(self.n_outputs):
+            #    with gil:
+            #        print("k=" + str(k))
                 y_ik = y[i * y_stride + k]
+            #    with gil:
+            #        print("i*y_stride + k = " + str(i*y_stride + k) + ", y_ik=" + str(y_ik))
                 w_y_ik = w * y_ik
+            #    with gil:
+            #        print("w_y_ik = " + str(w_y_ik))
                 self.sum_total[k] += w_y_ik
+            #    with gil:
+            #        print("self.sum_total[k] = " + str(self.sum_total[k]))
                 self.sq_sum_total += w_y_ik * y_ik
+            #    with gil:
+            #        print("self.sq_sum_total=" + str(self.sq_sum_total))
 
             self.weighted_n_node_samples += w
+            #with gil:
+            #    print("self.weighted_n_node_samples = " + str(self.weighted_n_node_samples))
 
         # Reset to pos=start
         self.reset()
@@ -909,6 +937,8 @@ cdef class MSE(RegressionCriterion):
     cdef double node_impurity(self) nogil:
         """Evaluate the impurity of the current node, i.e. the impurity of
            samples[start:end]."""
+        with gil:
+            print("node_impurity")
 
         cdef double* sum_total = self.sum_total
         cdef double impurity
@@ -917,7 +947,9 @@ cdef class MSE(RegressionCriterion):
         impurity = self.sq_sum_total / self.weighted_n_node_samples
         for k in range(self.n_outputs):
             impurity -= (sum_total[k] / self.weighted_n_node_samples)**2.0
-
+        with gil:
+            print("Impurity is: ")
+            print(impurity)
         return impurity / self.n_outputs
 
     cdef double proxy_impurity_improvement(self) nogil:
@@ -931,6 +963,8 @@ cdef class MSE(RegressionCriterion):
         The absolute impurity improvement is only computed by the
         impurity_improvement method once the best split has been found.
         """
+        with gil:
+            print("MSE.proxy_impurity_improvement")
 
         cdef double* sum_left = self.sum_left
         cdef double* sum_right = self.sum_right
@@ -943,6 +977,10 @@ cdef class MSE(RegressionCriterion):
             proxy_impurity_left += sum_left[k] * sum_left[k]
             proxy_impurity_right += sum_right[k] * sum_right[k]
 
+        with gil:
+            print("Proxy Impurity-left is " + str(proxy_impurity_left) + ", impurity-right is " + str(proxy_impurity_right))
+            print("weighted_n_left is " + str(self.weighted_n_left) + ", weighted_n_right " + str(self.weighted_n_right))
+
         return (proxy_impurity_left / self.weighted_n_left +
                 proxy_impurity_right / self.weighted_n_right)
 
@@ -952,6 +990,8 @@ cdef class MSE(RegressionCriterion):
            left child (samples[start:pos]) and the impurity the right child
            (samples[pos:end])."""
 
+        with gil:
+            print("children_impurity")
 
         cdef DOUBLE_t* y = self.y
         cdef DOUBLE_t* sample_weight = self.sample_weight
@@ -989,6 +1029,13 @@ cdef class MSE(RegressionCriterion):
         for k in range(self.n_outputs):
             impurity_left[0] -= (sum_left[k] / self.weighted_n_left) ** 2.0
             impurity_right[0] -= (sum_right[k] / self.weighted_n_right) ** 2.0
+
+        with gil:
+            print("Impurity-left is " + str(impurity_left[0]) + ", impurity-right is " + str(impurity_right[0]))
+            print("n_outputs: " + str(self.n_outputs))
+
+        # Regularization term - avoid new features
+        impurity_left
 
         impurity_left[0] /= self.n_outputs
         impurity_right[0] /= self.n_outputs
@@ -1237,6 +1284,8 @@ cdef class MAE(RegressionCriterion):
     cdef double node_impurity(self) nogil:
         """Evaluate the impurity of the current node, i.e. the impurity of
            samples[start:end]"""
+        with gil:
+            print("MAE node_impurity")
 
         cdef DOUBLE_t* y = self.y
         cdef DOUBLE_t* sample_weight = self.sample_weight
@@ -1262,6 +1311,8 @@ cdef class MAE(RegressionCriterion):
            left child (samples[start:pos]) and the impurity the right child
            (samples[pos:end]).
         """
+        with gil:
+            print("MAE.children_impurity")
 
         cdef DOUBLE_t* y = self.y
         cdef DOUBLE_t* sample_weight = self.sample_weight
@@ -1325,6 +1376,8 @@ cdef class FriedmanMSE(MSE):
         The absolute impurity improvement is only computed by the
         impurity_improvement method once the best split has been found.
         """
+        with gil:
+            print("FriedmanMSE.proxy_impurity_improvement")
 
         cdef double* sum_left = self.sum_left
         cdef double* sum_right = self.sum_right
@@ -1345,6 +1398,8 @@ cdef class FriedmanMSE(MSE):
         return diff * diff / (self.weighted_n_left * self.weighted_n_right)
 
     cdef double impurity_improvement(self, double impurity) nogil:
+        with gil:
+            print("FriedmanMSE.impurity_improvement")
         cdef double* sum_left = self.sum_left
         cdef double* sum_right = self.sum_right
 

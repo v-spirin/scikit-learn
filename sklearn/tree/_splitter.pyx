@@ -217,7 +217,7 @@ cdef class Splitter:
         return 0
 
     cdef int node_split(self, double impurity, SplitRecord* split,
-                        SIZE_t* n_constant_features) nogil except -1:
+                        SIZE_t* n_constant_features, np.ndarray feature_usage=None, double mu=0.0) nogil except -1:
         """Find the best split on node samples[start:end].
 
         This is a placeholder method. The majority of computation will be done
@@ -312,13 +312,16 @@ cdef class BestSplitter(BaseDenseSplitter):
                                self.presort), self.__getstate__())
 
     cdef int node_split(self, double impurity, SplitRecord* split,
-                        SIZE_t* n_constant_features) nogil except -1:
+                        SIZE_t* n_constant_features, np.ndarray feature_usage=None, double mu=0.0) nogil except -1:
         """Find the best split on node samples[start:end]
 
         Returns -1 in case of failure to allocate memory (and raise MemoryError)
         or 0 otherwise.
         """
         # Find the best split
+        with gil:
+            print("BestSplitter.node_split")
+
         cdef SIZE_t* samples = self.samples
         cdef SIZE_t start = self.start
         cdef SIZE_t end = self.end
@@ -386,6 +389,9 @@ cdef class BestSplitter(BaseDenseSplitter):
 
             n_visited_features += 1
 
+            with gil:
+                print("n_visited_features = " + str(n_visited_features) + ", FEATURE_THRESHOLD = " + str(FEATURE_THRESHOLD))
+
             # Loop invariant: elements of features in
             # - [:n_drawn_constant[ holds drawn and known constant features;
             # - [n_drawn_constant:n_known_constant[ holds known constant
@@ -447,6 +453,9 @@ cdef class BestSplitter(BaseDenseSplitter):
                     f_i -= 1
                     features[f_i], features[f_j] = features[f_j], features[f_i]
 
+                    with gil:
+                        print("Currently evaluating feature: " + str(current.feature))
+
                     # Evaluate all splits
                     self.criterion.reset()
                     p = start
@@ -477,7 +486,19 @@ cdef class BestSplitter(BaseDenseSplitter):
                                     (self.criterion.weighted_n_right < min_weight_leaf)):
                                 continue
 
+                            with gil:
+                                print("About to call self.criterion.proxy_impurity_improvement")
+
                             current_proxy_improvement = self.criterion.proxy_impurity_improvement()
+
+                            # TODO: Regularize here, based on whether feature has been used before                            
+                            if feature_usage is not None:                                
+                                with gil:
+                                    print("Need to regularize here, feature_usage[" + str(current.feature) + "] = " + str(feature_usage[current.feature]))
+                                    print("Best: " + str(best_proxy_improvement) + ", was: " + str(current_proxy_improvement) + ", now: " + str(current_proxy_improvement - 
+                                        mu * feature_usage[current.feature]))
+                                    current_proxy_improvement -= mu * feature_usage[current.feature]
+
 
                             if current_proxy_improvement > best_proxy_improvement:
                                 best_proxy_improvement = current_proxy_improvement
@@ -507,7 +528,15 @@ cdef class BestSplitter(BaseDenseSplitter):
 
             self.criterion.reset()
             self.criterion.update(best.pos)
+
+            with gil:
+                print("About to call self.criterion.impurity_improvement")
+
             best.improvement = self.criterion.impurity_improvement(impurity)
+
+            with gil:
+                print("About to call self.criterion.children_impurity")
+
             self.criterion.children_impurity(&best.impurity_left,
                                              &best.impurity_right)
 
@@ -655,13 +684,15 @@ cdef class RandomSplitter(BaseDenseSplitter):
                                  self.presort), self.__getstate__())
 
     cdef int node_split(self, double impurity, SplitRecord* split,
-                        SIZE_t* n_constant_features) nogil except -1:
+                        SIZE_t* n_constant_features, np.ndarray feature_usage=None, double mu=0.0) nogil except -1:
         """Find the best random split on node samples[start:end]
 
         Returns -1 in case of failure to allocate memory (and raise MemoryError)
         or 0 otherwise.
         """
         # Draw random splits and pick the best
+        with gil:
+            print("RandomSplitter.node_split")
         cdef SIZE_t* samples = self.samples
         cdef SIZE_t start = self.start
         cdef SIZE_t end = self.end
@@ -1199,13 +1230,15 @@ cdef class BestSparseSplitter(BaseSparseSplitter):
                                      self.presort), self.__getstate__())
 
     cdef int node_split(self, double impurity, SplitRecord* split,
-                        SIZE_t* n_constant_features) nogil except -1:
+                        SIZE_t* n_constant_features, np.ndarray feature_usage=None, double mu=0.0) nogil except -1:
         """Find the best split on node samples[start:end], using sparse features
 
         Returns -1 in case of failure to allocate memory (and raise MemoryError)
         or 0 otherwise.
         """
         # Find the best split
+        with gil:
+            print("BestSparseSplitter.node_split")
         cdef SIZE_t* samples = self.samples
         cdef SIZE_t start = self.start
         cdef SIZE_t end = self.end
@@ -1429,13 +1462,15 @@ cdef class RandomSparseSplitter(BaseSparseSplitter):
                                        self.presort), self.__getstate__())
 
     cdef int node_split(self, double impurity, SplitRecord* split,
-                        SIZE_t* n_constant_features) nogil except -1:
+                        SIZE_t* n_constant_features, np.ndarray feature_usage=None, double mu=0.0) nogil except -1:
         """Find a random split on node samples[start:end], using sparse features
 
         Returns -1 in case of failure to allocate memory (and raise MemoryError)
         or 0 otherwise.
         """
         # Find the best split
+        with gil:
+            print("RandomSparseSplitter.node_split")
         cdef SIZE_t* samples = self.samples
         cdef SIZE_t start = self.start
         cdef SIZE_t end = self.end

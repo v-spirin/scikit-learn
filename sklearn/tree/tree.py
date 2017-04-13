@@ -109,7 +109,7 @@ class BaseDecisionTree(six.with_metaclass(ABCMeta, BaseEstimator)):
         self.presort = presort
 
     def fit(self, X, y, sample_weight=None, check_input=True,
-            X_idx_sorted=None):
+            X_idx_sorted=None, feature_usage=None, mu=0.0):
 
         random_state = check_random_state(self.random_state)
         if check_input:
@@ -359,7 +359,9 @@ class BaseDecisionTree(six.with_metaclass(ABCMeta, BaseEstimator)):
                                            self.min_impurity_decrease,
                                            min_impurity_split)
 
-        builder.build(self.tree_, X, y, sample_weight, X_idx_sorted)
+        builder.build(self.tree_, X, y, sample_weight, X_idx_sorted,
+                                            feature_usage,
+                                            mu)
 
         if self.n_outputs_ == 1:
             self.n_classes_ = self.n_classes_[0]
@@ -736,7 +738,7 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
             presort=presort)
 
     def fit(self, X, y, sample_weight=None, check_input=True,
-            X_idx_sorted=None):
+            X_idx_sorted=None, feature_usage=None, mu=0.0):
         """Build a decision tree classifier from the training set (X, y).
 
         Parameters
@@ -776,7 +778,9 @@ class DecisionTreeClassifier(BaseDecisionTree, ClassifierMixin):
             X, y,
             sample_weight=sample_weight,
             check_input=check_input,
-            X_idx_sorted=X_idx_sorted)
+            X_idx_sorted=X_idx_sorted,
+            feature_usage=feature_usage, 
+            mu=mu)
         return self
 
     def predict_proba(self, X, check_input=True):
@@ -1056,7 +1060,7 @@ class DecisionTreeRegressor(BaseDecisionTree, RegressorMixin):
             presort=presort)
 
     def fit(self, X, y, sample_weight=None, check_input=True,
-            X_idx_sorted=None):
+            X_idx_sorted=None, feature_usage=None, mu=0.0):
         """Build a decision tree regressor from the training set (X, y).
 
         Parameters
@@ -1095,7 +1099,9 @@ class DecisionTreeRegressor(BaseDecisionTree, RegressorMixin):
             X, y,
             sample_weight=sample_weight,
             check_input=check_input,
-            X_idx_sorted=X_idx_sorted)
+            X_idx_sorted=X_idx_sorted,
+            feature_usage=feature_usage, 
+            mu=mu)
         return self
 
 

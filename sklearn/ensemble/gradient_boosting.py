@@ -726,7 +726,7 @@ class BaseGradientBoosting(six.with_metaclass(ABCMeta, BaseEnsemble)):
                  max_depth, min_impurity_decrease, min_impurity_split,
                  init, subsample, max_features,
                  random_state, alpha=0.9, verbose=0, max_leaf_nodes=None,
-                 warm_start=False, presort='auto'):
+                 warm_start=False, presort='auto', feature_num_regularization=0.0):
 
         self.n_estimators = n_estimators
         self.learning_rate = learning_rate
@@ -747,6 +747,9 @@ class BaseGradientBoosting(six.with_metaclass(ABCMeta, BaseEnsemble)):
         self.max_leaf_nodes = max_leaf_nodes
         self.warm_start = warm_start
         self.presort = presort
+        self.feature_num_regularization = feature_num_regularization
+        self.feature_usage = None
+
 
     def _fit_stage(self, i, X, y, y_pred, sample_weight, sample_mask,
                    random_state, X_idx_sorted, X_csc=None, X_csr=None):
@@ -784,10 +787,10 @@ class BaseGradientBoosting(six.with_metaclass(ABCMeta, BaseEnsemble)):
 
             if X_csc is not None:
                 tree.fit(X_csc, residual, sample_weight=sample_weight,
-                         check_input=False, X_idx_sorted=X_idx_sorted)
+                         check_input=False, X_idx_sorted=X_idx_sorted, feature_usage=self.feature_usage, mu=self.feature_num_regularization)
             else:
                 tree.fit(X, residual, sample_weight=sample_weight,
-                         check_input=False, X_idx_sorted=X_idx_sorted)
+                         check_input=False, X_idx_sorted=X_idx_sorted, feature_usage=self.feature_usage, mu=self.feature_num_regularization)
 
             # update tree leaves
             if X_csr is not None:
@@ -906,6 +909,8 @@ class BaseGradientBoosting(six.with_metaclass(ABCMeta, BaseEnsemble)):
             del self.oob_improvement_
         if hasattr(self, 'init_'):
             del self.init_
+        if hasattr(self, 'feature_usage'):
+        	self.feature_usage = None
 
     def _resize_state(self):
         """Add additional ``n_estimators`` entries to all attributes. """
@@ -976,6 +981,9 @@ class BaseGradientBoosting(six.with_metaclass(ABCMeta, BaseEnsemble)):
         # if not warmstart - clear the estimator state
         if not self.warm_start:
             self._clear_state()
+
+        if (self.feature_num_regularization != 0) and (self.feature_usage is None):
+        	self.feature_usage = np.ones(X.shape[1])
 
         # Check input
         X, y = check_X_y(X, y, accept_sparse=['csr', 'csc', 'coo'], dtype=DTYPE)
@@ -1436,7 +1444,7 @@ class GradientBoostingClassifier(BaseGradientBoosting, ClassifierMixin):
                  min_impurity_split=1e-7, init=None,
                  random_state=None, max_features=None, verbose=0,
                  max_leaf_nodes=None, warm_start=False,
-                 presort='auto'):
+                 presort='auto', feature_num_regularization=0.0):
 
         super(GradientBoostingClassifier, self).__init__(
             loss=loss, learning_rate=learning_rate, n_estimators=n_estimators,
@@ -1450,7 +1458,7 @@ class GradientBoostingClassifier(BaseGradientBoosting, ClassifierMixin):
             min_impurity_decrease=min_impurity_decrease,
             min_impurity_split=min_impurity_split,
             warm_start=warm_start,
-            presort=presort)
+            presort=presort, feature_num_regularization=feature_num_regularization)
 
     def _validate_y(self, y):
         check_classification_targets(y)
